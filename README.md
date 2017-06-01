@@ -1,6 +1,6 @@
 runJs
 =========
-使用方法
+配置信息
 ------
 ```javascript
 //配置信息 写在<script></script>块中 _Qma为全局变量
