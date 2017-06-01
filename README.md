@@ -1,5 +1,12 @@
-runJs
+runJs[模块加载器]
 =========
+为了解决浏览器模块加载问题<br>
+ * 目前支持的
+ *  firefox2.0以上(低版本由于不能安装没办验证)
+ *  webkit 534版本及以上, 低版本未验证
+ *  IE5以上
+ *  opera
+ ----
 配置信息
 ------
 ```javascript
@@ -9,8 +16,11 @@ var _Qma = {
       v 	: ( +new Date / ( 1000 ) ) >> 0,
       //短连接 require(name)中的name
       alias	: {
-      	'main' 			: 'script/test',
-      	'query' 			: 'script/query',
+      	//调度模块
+      	'main' 			: 'script/main',
+	//测试模块
+	'test' 			: 'script/test',
+      	'query' 		: 'script/query',
       	'menu.show' 	: 'css/menu.show',
       	'mode' 			: 'script/mode'
       },
@@ -31,7 +41,7 @@ var _Qma = {
       }
 }
 ```
-HTML中的调用
+HTML中的启用入口 写在body标签结尾或者后
 -------
 ```html
 <!--第一种使用-->
@@ -39,7 +49,7 @@ HTML中的调用
 ```
 ```html
 <!--第二种使用-->
-<script type="text/javascript" src="runjs.js" main="script/test" ></script>
+<script type="text/javascript" src="runjs.js" main="script/main" ></script>
 ```
 ```html
 <!--第三种使用-->
@@ -47,6 +57,29 @@ HTML中的调用
 	require.use( 'main' );
 </script>
 ```
-
-
-
+模块声明 script/test
+----
+```javascript
+//script/test.js
+//define(id?, deps?, factory)
+define(function( require, exports, module){
+	exports.run = function(){
+		console.log( '这是模块script/test#run被调用了' )
+	}
+	return {
+		testlog : function(){
+			console.log( 'test' )
+		}
+	}
+})
+```
+入口函数及调用
+------
+```javascript
+//此处默认调用执行
+define( function( require, exports, module ){
+	var test = require( 'test' );
+	test.run();
+	test.testlog();
+})
+```
