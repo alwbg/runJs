@@ -1,3 +1,4 @@
+<pre>
 # runjs
 <script type="text/javascript">
 var _Qma = {
@@ -38,3 +39,5 @@ var _Qma = {
 <script type="text/javascript" src="runjs.js" main="main" >
 	//require.use( 'main' );
 </script>
+
+</pre>
