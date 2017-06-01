@@ -76,6 +76,7 @@ define(function( require, exports, module){
 入口函数及调用
 ------
 ```javascript
+//script/test.js
 //此处默认调用执行 CMD写法
 define( function( require, exports, module ){
 	var test = require( 'test' );
