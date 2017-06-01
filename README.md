@@ -76,9 +76,14 @@ define(function( require, exports, module){
 入口函数及调用
 ------
 ```javascript
-//此处默认调用执行
+//此处默认调用执行 CMD写法
 define( function( require, exports, module ){
 	var test = require( 'test' );
+	test.run();
+	test.testlog();
+})
+//此处默认调用执行 AMD写法
+define( ['test'], function( test ){
 	test.run();
 	test.testlog();
 })
