@@ -14,8 +14,9 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
+ * creation-time : 2017-06-22 15:49:03 PM
  */
-(function( root ){
+(function( global ){
 	'use strict';
 	//var root 				= this;
 	var _SELF;
@@ -90,7 +91,7 @@
 	var INNER_CLASS_SEP 	= '#';
 
 	//声明内部对象
-	var Qma 	= root._Qma || {};
+	var Qma 	= global._Qma || {};
 
 	//配置相关版本
 	var version = Qma.v || EMPTY_STRING;
@@ -110,13 +111,13 @@
 		 * @type {Object}
 		 */
 		com 			= {},
+		_depends 		= Qma.depends || {},
 		//声明的短链
 		alias 			= {};
 	//缓存请求ID
 	com.requireIDs 		= {};
 	//拷贝属性
 	merge( alias, Qma.alias );
-
 	Qma.comp = function( script, src ){
 		var link = script.getAttribute( MODULE_NAME );
 		src = src.split( INNER_CLASS_SEP )[ 0 ];
@@ -332,8 +333,8 @@
 		depend : function(){
 			var module = this.data();
 			//增加配置依赖
-			if( module.alias in Qma.depends ){
-				EMPTY_ARRAY_PUSH.apply( module.deps, ( Qma.depends[ module.alias ] || {} ).deps || [] );
+			if( module.alias in _depends ){
+				EMPTY_ARRAY_PUSH.apply( module.deps, ( _depends[ module.alias ] || {} ).deps || [] );
 			}
 			//增加依赖
 			if( isFunction( module.factory ) ){
@@ -973,8 +974,8 @@
 		factory = tank[ 2 ];
 		//含有依赖时按照AMD模式处理
 		factory.cmd = ! deps.length;
-
 		var moduleID = com.moduleId( id, name );
+		//console.log( id,'---', name,'---', moduleID )
 
 		if( ! ( task = com.isInStorage( moduleID ) ) ){
 			//Do Noting..//com.moduleStorage[ moduleID ];
@@ -1073,12 +1074,12 @@
 				var uri = data.uri;
 
 				/* 是否有相关CMD|AMD配置, 使非模块化的模块化 */
-				if( uri in Qma.depends ){
-					var mods = Qma.depends[ uri ] || [],
+				if( uri in _depends ){
+					var mods = _depends[ uri ] || [],
 						name = mods.exports;
 					if( name ){
 						define.call( uri, mods.deps, function( ){
-							return root[ name ];
+							return global[ name ];
 						})
 					}
 				}
@@ -1183,7 +1184,7 @@
 		}
 	}, com )
 
-	merge( root, {
+	merge( global, {
 		define 	: define,
 		require : require,
 		modules	: modules
@@ -1205,12 +1206,12 @@
 	declareModule( REQUIRE_NAME, require );
 
 	//调试
-	root.DEBUG = root.DEBUG || false;
-	root.appendChild = append;
+	global.DEBUG = global.DEBUG || false;
+	global.appendChild = append;
 	//输出流程
 	function debug(){
-		if( ! root.DEBUG ) return;
-		echo.apply( root, EMPTY_ARRAY.slice.call( arguments ) );
+		if( ! global.DEBUG ) return;
+		echo.apply( global, EMPTY_ARRAY.slice.call( arguments ) );
 	}
 	var debugBox,
 		CLR;
