@@ -80,6 +80,7 @@ define(function( require, exports, module){
 //此处默认调用执行 CMD写法
 define( function( require, exports, module ){
 	var test = require( 'test' );
+    repuire( 'menu.show' );//加载样式,对样式实施分块加载
 	test.run();
 	test.testlog();
 })
