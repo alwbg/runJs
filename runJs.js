@@ -9,12 +9,27 @@
  *         2. 修改了加载中的模块对应的映射表
  *         3. 修改计算模版ID 计算及存的逻辑, 只做计算不存储
  *         4. 修改只删除AMD模块执行创建的费对象问题
+ * @update 2017/6/23 新增对HTML内的runJs代码块的支持
+ *         <!--其中先执行代码块内的代码,再执行main模块的代码-->
+ *         <script src="runjs.js" main="main" >
+ *         		//module-name = "__runjs.inner__"
+ *         		var $ = require( 'query' );
+ *         		$( 'test' ).appendTo( 'body' );
+ *         		//exports 为方法块内部对象
+ *         		exports.run = function(){
+ *         		}
+ *         		//为main模块传递参数
+ *         		return {
+ *         			log : function(){
+ *         			}
+ *         		}
+ *         </script>
  * 目前支持的
  * - firefox2.0以上(低版本由于不能安装没办验证)
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-06-22 15:49:03 PM
+ * creation-time : 2017-06-24 20:08:10 PM
  */
 (function( global ){
 	'use strict';
@@ -181,6 +196,8 @@
 	com.pickMI = function(){
 		return self().getAttribute( MODULE_NAME );
 	}
+
+	com.moduleIdRMap = {};
 	/**
 	 * 获取模块ID
 	 * @param  {String} id   自定义模块ID
@@ -188,10 +205,11 @@
 	 * @return {String}      最终需要的模块ID
 	 */
 	com.moduleId = function( id, name ){
-		if( id != name || ! new RegExp( id + '$' ).test( name ) ){
+		var RID = this.moduleIdRMap[ id ] || ( this.moduleIdRMap[ id ] = new RegExp( id + '$' ) )
+		if( ! RID.test( name ) ){
 			name = name + INNER_CLASS_SEP + id;
 		}
-		return alias[ id ] = name.realMI();
+		return alias[ id ] = (name||id).realMI();
 	}
 	/**
 	 * 判断是否已在已加载列表
@@ -880,7 +898,7 @@
 			com.factory.require( task )
 			:
 			//创建CMD对象
-			module.factory.apply( task, [ require, _Mo.exports, _Mo ] );
+			module.factory.apply( task, [ require, _Mo.exports, _Mo, id ] );
 
 			if( isFunction( _ret ) ){
 				_Mo.exports = _ret;
@@ -1189,22 +1207,33 @@
 		require : require,
 		modules	: modules
 	}, true );
-	//define.toString = require.toString = function(){ return 'function(){[native code]}'}
-	/*获取当前引用的配置属性*/
-	mainJsPath = _SELF.getAttribute( STRING_MAIN );
-
-	/*判断是否有自执行*/
-	if( mainJsPath ){
-		require.async( mainJsPath );
-	} else if( mainJsPath = _SELF.innerHTML ) {
-		eval( mainJsPath )
-	}
+	
+	declareModule( REQUIRE_NAME, require );
 	//声明内部工具模块
 	declareModule( '_tools__', tools.pick( tools, [ 'runFx', 'checkByType', 'pick' ] ) );
 
-	//声明require为内部模块
-	declareModule( REQUIRE_NAME, require );
+	//define.toString = require.toString = function(){ return 'function(){[native code]}'}
+	/*获取当前引用的配置属性*/
+	mainJsPath = _SELF.getAttribute( STRING_MAIN );
+	function auto(){
+		/*判断是否有自执行*/
+		if( mainJsPath ){
+			require.async( mainJsPath );
+		}
+	}
+	if( _SELF.innerHTML ){
+		var innerModuleID = '__runjs.inner__';
+		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name', _SELF.innerHTML ) )
+		require( innerModuleID, function(){
+			auto();
+			flush();
+		} );
+	} else {
+		auto();
+	}
 
+
+	//声明require为内部模块
 	//调试
 	global.DEBUG = global.DEBUG || false;
 	global.appendChild = append;
@@ -1237,17 +1266,17 @@
 		try{
 			var log = Array.apply( null, arguments );
 			//log.push( ' - '+(+new Date - ONE) + 'ms' );
-			throw ''
+			//throw ''
 			console.log.apply( console , log );
 		} catch ( e ){
 			try{append( EMPTY_ARRAY_SLICE.call( arguments ).join( '\r\n\r\n' ) );}catch(e){}
 		}
 	};
 
-	Qma.com 	= com;
-	Qma.each 	= each;
-	Qma.debug 	= Qma.debug || debug;
-	Qma.echo 	= echo;
-	Qma.append 	= append
+	// Qma.com 	= com;
+	// Qma.each 	= each;
+	// Qma.debug 	= Qma.debug || debug;
+	// Qma.echo 	= echo;
+	// Qma.append 	= append
 
 }( window ))
