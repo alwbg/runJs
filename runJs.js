@@ -18,10 +18,9 @@
  *         		//exports 为方法块内部对象
  *         		exports.run = function(){
  *         		}
- *         		//为main模块传递参数
+ *         		//为模块间传递参数
  *         		return {
- *         			log : function(){
- *         			}
+ *         			language : {zh:{},en:{}}
  *         		}
  *         </script>
  * 目前支持的
@@ -29,7 +28,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-06-24 20:08:10 PM
+ * creation-time : 2017-06-24 20:25:18 PM
  */
 (function( global ){
 	'use strict';
