@@ -1,6 +1,9 @@
 /**
  * 模块加载器
  * @autor alwbg@163.com | soei
+ *  ------------------------------------
+ *  -  https://github.com/alwbg/runJs  -
+ *  ------------------------------------
  * @Date 2015/4/23
  * @update 2016/1/8 修改低版本的加载问题.
  * @update 2016/4/12 修改获取模块ID问题 短ID和长ID的对称性
@@ -23,16 +26,16 @@
  *         			language : {zh:{},en:{}}
  *         		}
  *         </script>
+ * @update 2017/7/5 22:30 修改 _async_require_map._async_fx__ 对ES6 function新语法支持
  * 目前支持的
  * - firefox2.0以上(低版本由于不能安装没办验证)
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-06-24 20:25:18 PM
+ * creation-time : 2017-07-06 15:58:46 PM
  */
 (function( global ){
 	'use strict';
-	//var root 				= this;
 	var _SELF;
 	//模版ID名称属性 针对html JS属性值 第一次加载用
 	var	MODULE_NAME 		= 'deps-name';
@@ -66,8 +69,7 @@
 	//firefox 9.0以下版本不支持css onload回调
 	var IS_FIREFOX_LOW 		= USERAGENT.replace(/.*firefox\/([\d\.]+).*/i, $1 ) 	< 9.0;
 
-	//alert( USERAGENT.replace(/^(?:(?!chrome).)*(?:(safari)|(chrome)|(firefox)|(ie)|(opera))[\/]*(\d*).*$/i,'$1$2$3$4$5').toLowerCase() + '\r\n\r\n\r\n' + RegExp.$6 +'\r\n\r\n\r\n' +USERAGENT )
-	debug( USERAGENT )
+	debug( USERAGENT );
 
 	//是否只支持单加载机制的浏览器
 	var IS_LONG_LONG_AGO 	= IS_WEBKIT_LOW || IS_FIREFOX_LOW;
@@ -81,7 +83,7 @@
 	 * 匹配其中的形参a
 	 * @type {RegExp}
 	 */
-	var SIGN_REQUIRE 	= /^function\s*\(\s*([^\),\s]+)/;
+	var SIGN_REQUIRE 	= /^[^(]*\(\s*([^\),\s]+)(?:=>)?/;
 	/**
 	 * 做链接使用, 匹配require的参数
 	 * @type {String}
@@ -204,7 +206,7 @@
 	 * @return {String}      最终需要的模块ID
 	 */
 	com.moduleId = function( id, name ){
-		var RID = this.moduleIdRMap[ id ] || ( this.moduleIdRMap[ id ] = new RegExp( id + '$' ) )
+		var RID = this.moduleIdRMap[ id ] || ( this.moduleIdRMap[ id ] = new RegExp( id + '(?:$|\\.js)', 'i' ) )
 		if( ! RID.test( name ) ){
 			name = name + INNER_CLASS_SEP + id;
 		}
@@ -225,7 +227,11 @@
 	 * @return {RegExp}
 	 */
 	com.pull = function( fx, factory ){
-		var name = factory.cmd && SIGN_REQUIRE.test( fx ) ? '|' + RegExp.$1 : EMPTY_STRING;
+		var $1,
+		name = factory.cmd 
+			&& SIGN_REQUIRE.test( fx )
+			&& ($1 = RegExp.$1)
+			&& $1 != REQUIRE_NAME ? '|' + RegExp.$1 : EMPTY_STRING;
 		return new RegExp( '[^a-z](?:' + REQUIRE_NAME +  name + ')' + SIGN_MARK, 'ig' );
 	}
 	/**
@@ -243,7 +249,7 @@
 	 * @return {String} 处理完后的
 	 */
 	String.prototype.realMI = function(){
-		return com.toRealMI( this )/* alias[ this ] =  com.uri.real( *//* )*/;
+		return com.toRealMI( this );
 	}
 
 	/**
@@ -266,7 +272,7 @@
 
 	//获取script列表
 	var _Scripts 		= getTags( 'script' );
-		//存储head DOM对象
+	//存储head DOM对象
 	var HEAD 			= getTags( 'head' )[0];
 
 	/**
@@ -410,7 +416,8 @@
 				return false
 			}
 			return true;
-		}
+		},
+		require : require
 	} )
     /**
      * 声明一个模块 内部使用
@@ -439,14 +446,14 @@
 	}
 	//创建类型判断
 	var isRoot 			= is( 'Object' ),
-		isObject 		= function( O ){ return O && isRoot( O ); },
 		isFunction 		= is( 'Function' ),
 		isArray 		= is( 'Array' ),
 		isString 		= is( 'String' ),
 		isRegExp 		= is( RegExp ),
 		isTask 			= is( Task ),
 		isSimplyType 	= is( '(?:Number|Boolean|Null|String|Undefined)' ),
-		isStringOrArray 	= is( '(?:Array|String)' ),
+		isObject 		= function( O ){ return O && isRoot( O ); },
+		//isStringOrArray 	= is( '(?:Array|String)' ),
 		isStringNotArray 	= is( '(?:(?!Array)|String)' );
 	/**
 	 * 获取当前运行的JS文件对象
@@ -465,8 +472,7 @@
 			eStack = e.stack;
 		}
 		if( eStack ) {
-			//只能获取第一次进入时的错误堆栈
-			//进入方法体内部时不能正确获取正确的堆栈
+			//只能获取第一次进入时的错误堆栈,进入方法体内部时不能正确获取正确的堆栈
 			eStack = eStack.replace( ERR_STACK_REG, $1 );
 			node = Qma.getScriptByUri( eStack, nodes );
 			if( node ) return node;
@@ -557,7 +563,7 @@
 		 * @param  {Number}   length 代理参数
 		 */
 		array : function( source, fn, key, length ){
-			key = 0; length = source.length;// >> 0;
+			key = 0; length = source.length >> 0;
 			for( ; key < length && ! fn.call( this, key, source[ key ], source ); key++ );
 		},
 		object : function( source, fn, key ){
@@ -594,19 +600,19 @@
 	 * 处理声明function
 	 * @type {Object}
 	 */
-	var FORMAT_FUNC = declare( 'format.function', {
-		SEP 	: '{@}',
-		START	: '{%}',
-		LEFT	: '{',
-		RIGHT	: '}',
-		map 	: {},
-		NUM : 1E6,
-		_ONLY_REQUIRE : /(require\s*\([^\),]*,\s*function\s*\([^\)]*\)\s*\{)/,
-		REQUIRE	: /(?:(require\s*\([^\),]*,\s*function\s*\([^\)]*\)\s*\{)|(\{)|(\}))/g,
-		REPLACE : function( num ){
+	var _async_require_map = {
+		SEP 				: '{@}',
+		START				: '{%}',
+		LEFT				: '{',
+		RIGHT				: '}',
+		map 				: {},
+		NUM 				: 1E6,
+		_has_async_func_ 	:     /(?:require|\w+)\s*\([^),]*/,
+		_async_fx__			: /(?:((?:require|\w+)\s*\([^),]*,[^(]*\([^)]*\)\s*(?:=>)?\s*\{)|(\{)|(\}))/g,
+		REPLACE 			: function( num ){
 			return this.map[ num ] || (this.map[ num ] = new RegExp( '\\' + this.START + num + '(?:(?!\\' + this.SEP + num + ').|\\n)*\\' + this.SEP + num));
 		}
-	}, com );
+	};
 
 	var moduleIDs = {}
 	/**
@@ -614,9 +620,8 @@
 	 * @type {Util}
 	 */
 	merge( Util.prototype, {
-		//QUOTES_REG 		: /^\W?([\w\.\/:&#%-]*)\W?$/g,
-		//匹配注释 修改了\/\/匹配的问题 http://影响混淆//(?:([^\/'":])\/\/.*$)//(?:^(\t|\s)|(?!:))
-		//ANNOTATION_REG  :     /(?:(\/\*(?:[^*]*|(?:(?!\*\/).)*)\*\/)|(?:[^\/'":]\/\/.*$))/gm,
+		//ANNOTATION_REG: /(?:(\/\*(?:[^*]*|(?:(?!\*\/).)*)\*\/)|(?:[^\/'":]\/\/.*$))/gm,
+		//匹配注释 修改了\/\/匹配的问题 http://影响混淆
 		ANNOTATION_REG  : /(?:(\/\*+(?:[^*]|\*[^\/])*\*\/))|(?:([^\/'":])\/\/.*$)[\r\n]*/gm,
 		/**
 		 * 执行Function
@@ -636,14 +641,10 @@
 		 */
 		getDeps : function( factory ) {
 			var fx = factory.toString();
-			// fx.replace( this.ANNOTATION_REG, function( a, $1 ){
-			// 	console.log( '%c'+$1, 'color:red' )
-			// 	return $1
-			// } );
 			//去掉注释
 			fx = fx.replace( this.ANNOTATION_REG,  EMPTY_STRING );
 			//判断是否含有异步调用
-			FORMAT_FUNC._ONLY_REQUIRE.test( fx ) &&
+			_async_require_map._has_async_func_.test( fx ) &&
 			//排除异步加载
 			( fx = this.removeAsyncRequire( fx ) );
 			//处理方法的运行环境
@@ -652,7 +653,6 @@
 				pick 	: [],
 				map 	: com.requireIDs
 			};
-			//debug( fx.match( context.mark ), '<br>', fx )
 			each(
 				//数据源
 				fx.match( context.mark ) || [],
@@ -670,16 +670,16 @@
 		},
 		removeAsyncRequire : function( fx ){
 			var 
-				l	= FORMAT_FUNC.LEFT,
-				r	= FORMAT_FUNC.RIGHT,
-				sep	= FORMAT_FUNC.SEP,
-				start	= FORMAT_FUNC.START;
+				l		= _async_require_map.LEFT,
+				r		= _async_require_map.RIGHT,
+				sep		= _async_require_map.SEP,
+				start	= _async_require_map.START;
 			var 
 				mark 	= false,
 				block 	= 0,
-				cMark 	= FORMAT_FUNC.NUM;
+				cMark 	= _async_require_map.NUM;
 
-			fx = fx.replace( FORMAT_FUNC.REQUIRE, 
+			fx = fx.replace( _async_require_map._async_fx__, 
 				/**
 				 * 匹配异步模块加载并替换
 				 * @param  {String} pick 通配符
@@ -697,17 +697,15 @@
 						pick == r && cMark--;
 						if( cMark == 0 ){
 							mark = false;
-							cMark = FORMAT_FUNC.NUM;
+							cMark = _async_require_map.NUM;
 							return sep;
 						}					
 					}
 
 				return EMPTY_STRING;
 			} );
-			//console.log( fx )
-			//var check = new RegExp( '\\' + start + '(\\d+)' );
-			while( fx.indexOf( start ) != -1 /*check.test( fx )*/ && block-- ){
-				fx = fx.replace( FORMAT_FUNC.REPLACE( EMPTY_STRING/*RegExp.$1*/ ), EMPTY_STRING );
+			while( fx.indexOf( start ) != -1 && block-- ){
+				fx = fx.replace( _async_require_map.REPLACE( EMPTY_STRING ), EMPTY_STRING );
 			}
 			return fx;
 		},
@@ -756,7 +754,6 @@
 					isIn = value in data;
 					if( ! isIn ) return;
 					this.fx( this.box, value, data[ value ] );
-					//this[ type ? key : value ] = data[ value ];
 				},
 				{ box : __data_, fx : fn }
 			);
@@ -883,7 +880,7 @@
 	 * @return {Object}    模块对象
 	 */
 	function moduleFactory( id ){
-		id = com.toRealMI( id )//.realMI();
+		id = com.toRealMI( id );
 		var task;
 		if( task = com.isInModules( id ) ) return task;
 		if( task = com.isInStorage( id ) ){
@@ -932,6 +929,7 @@
 				//声明回调方法
 				factory : func
 			} );
+		isFunction( func ) && ( func.cmd = false );
 		task.async = !!len;
 		//计算所依赖的模块状态
 		while( len-- && com.isInModules( uri[ len ] ) );
@@ -968,7 +966,6 @@
 			name = isString( this ) ? this + EMPTY_STRING : com.pickMI(),
 			mark = 0,
 			task;
-
 		//创建单纯对象
 		if( isObject( id ) || isObject( deps ) && ++mark ){
 			if( ! mark ) {
@@ -986,23 +983,19 @@
 			[ name, [], function(){} ] //默认数据 如果不写.默认 undfined
 		);
 		//重新建立关系
-		id 		= tank[ 0 ];
-		deps 	= tank[ 1 ];
-		factory = tank[ 2 ];
+		id 			= tank[ 0 ];
+		deps 		= tank[ 1 ];
+		factory 	= tank[ 2 ];
 		//含有依赖时按照AMD模式处理
 		factory.cmd = ! deps.length;
 		var moduleID = com.moduleId( id, name );
-		//console.log( id,'---', name,'---', moduleID )
 
 		if( ! ( task = com.isInStorage( moduleID ) ) ){
-			//Do Noting..//com.moduleStorage[ moduleID ];
-		/*} else {*/
 			task = new Task( DEFINE_NAME, { id : moduleID, deps : deps, factory : factory, length : deps.length, alias : id } );
 		}
 		//判断当前define是否已被依赖,如果是进列队否则休眠
 		if( task.isInActive() ) task.run();
 	}
-
 	/**
 	 * 执行列队
 	 * @param  {Array} 依赖列队
@@ -1033,7 +1026,6 @@
 			EMPTY_ARRAY_PUSH.apply( tasks, isNotReadyList );
 		});
 	}
-
 	/**
 	 * 处理define和require声明的处理方法
 	 * 调用在依赖已加载完毕时
@@ -1115,10 +1107,9 @@
 	declare( 'uri', {
 		/* 匹配后缀名 目前支持 js | css(后不含有?或者#) '|css[^#?]' */
 		DOT_EXTNAME 	: /\.(js(?=$|#))/,
-		HAS_EXT		: /(?:(\.(?:css|js))|(.))(\?|\#|$)/,
+		HAS_EXT			: /(?:(\.(?:css|js))|(.))(\?|\#|$)/,
 		/* 匹配 [dir/../] or [/.] */
 		DOT 			: /(?:[^\/]*\/[^\/]*\.{2}\/|\/\.(?!\.))/,
-		//_dot 			: /^\./,
 		/**
 		 * 获取模块配置信息
 		 * @param  {String} uri 模块ID
@@ -1193,11 +1184,9 @@
 		 * @return {String}
 		 */
 		path : function( path, type ){
-			//debug( 'path : ', path, 'color:#9bd807' )
 			var sep = /\?|#/.test( path ) ? '&' : '?';
 			path = path.replace( this.HAS_EXT, '$2' + type + '$3' );
-			//debug( 'path : ', path, ' : ',' - ', RegExp.$3 , '-color:#9bd807' )
-			return path + sep + version;
+			return path + ( version && ( sep + version ) ) || EMPTY_STRING;
 		}
 	}, com )
 
@@ -1205,13 +1194,14 @@
 		define 	: define,
 		require : require,
 		modules	: modules
-	}, true );
+	}, !true );
 	
+	//声明require为内部模块
 	declareModule( REQUIRE_NAME, require );
 	//声明内部工具模块
 	declareModule( '_tools__', tools.pick( tools, [ 'runFx', 'checkByType', 'pick' ] ) );
 
-	//define.toString = require.toString = function(){ return 'function(){[native code]}'}
+	define.toString = require.toString = function(){ return 'function(){[native code]}'}
 	/*获取当前引用的配置属性*/
 	mainJsPath = _SELF.getAttribute( STRING_MAIN );
 	function auto(){
@@ -1222,7 +1212,7 @@
 	}
 	if( _SELF.innerHTML ){
 		var innerModuleID = '__runjs.inner__';
-		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name', _SELF.innerHTML ) )
+		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name', _SELF.innerHTML ) );
 		require( innerModuleID, function(){
 			auto();
 			flush();
@@ -1230,12 +1220,9 @@
 	} else {
 		auto();
 	}
-
-
-	//声明require为内部模块
 	//调试
-	global.DEBUG = global.DEBUG || false;
-	global.appendChild = append;
+	global.DEBUG 		= global.DEBUG || false;
+	global.appendChild 	= append;
 	//输出流程
 	function debug(){
 		if( ! global.DEBUG ) return;
@@ -1264,18 +1251,11 @@
 	function echo(){
 		try{
 			var log = Array.apply( null, arguments );
-			//log.push( ' - '+(+new Date - ONE) + 'ms' );
 			//throw ''
 			console.log.apply( console , log );
 		} catch ( e ){
 			try{append( EMPTY_ARRAY_SLICE.call( arguments ).join( '\r\n\r\n' ) );}catch(e){}
 		}
 	};
-
-	// Qma.com 	= com;
-	// Qma.each 	= each;
-	// Qma.debug 	= Qma.debug || debug;
-	// Qma.echo 	= echo;
-	// Qma.append 	= append
 
 }( window ))
