@@ -32,7 +32,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-07-06 18:43:36 PM
+ * creation-time : 2017-07-06 18:51:29 PM
  */
 (function( global ){
 	'use strict';
@@ -1124,7 +1124,7 @@
 			//获取后缀
 			var suffix = this.extname( uri ).toLowerCase();
 			//获取带后缀的连接地址
-			var path = this.path( /^(?:http[s]?|file)\:/.test( uri ) ? uri : uri.realMI(), suffix );///^(?:http[s]?|file)\:/g.test( uri ) ? uri : this.path( uri.realMI(), suffix );
+			var path = this.path( /^(?:http[s]?|file)\:/.test( uri ) ? uri : uri.realMI(), suffix );
 			var data = {
 				uri 	: uri ,
 	 			//获取标签类型
@@ -1212,7 +1212,7 @@
 	}
 	if( _SELF.innerHTML ){
 		var innerModuleID = '__runjs.inner__';
-		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name', _SELF.innerHTML ) );
+		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name' ) );
 		require( innerModuleID, function(){
 			auto();
 			flush();
