@@ -32,7 +32,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-07-06 15:58:46 PM
+ * creation-time : 2017-07-06 18:43:36 PM
  */
 (function( global ){
 	'use strict';
@@ -83,7 +83,7 @@
 	 * 匹配其中的形参a
 	 * @type {RegExp}
 	 */
-	var SIGN_REQUIRE 	= /^[^(]*\(\s*([^\),\s]+)(?:=>)?/;
+	var SIGN_REQUIRE 	= /^\w*\(\s*([^\),\s]+)(?:=>)?/;
 	/**
 	 * 做链接使用, 匹配require的参数
 	 * @type {String}
