@@ -32,7 +32,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-07-06 18:51:29 PM
+ * creation-time : 2017-07-07 16:50:53 PM
  */
 (function( global ){
 	'use strict';
@@ -1212,7 +1212,7 @@
 	}
 	if( _SELF.innerHTML ){
 		var innerModuleID = '__runjs.inner__';
-		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name' ) );
+		define.call( innerModuleID, new Function( 'require', 'exports', 'module', '__module_name', _SELF.innerHTML ) );
 		require( innerModuleID, function(){
 			auto();
 			flush();
