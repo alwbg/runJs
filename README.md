@@ -4,6 +4,9 @@ runJs[模块加载器]
 /**
  * 模块加载器
  * @autor alwbg@163.com | soei
+ *  ------------------------------------
+ *  -  https://github.com/alwbg/runJs  -
+ *  ------------------------------------
  * @Date 2015/4/23
  * @update 2016/1/8 修改低版本的加载问题.
  * @update 2016/4/12 修改获取模块ID问题 短ID和长ID的对称性
@@ -15,26 +18,28 @@ runJs[模块加载器]
  * @update 2017/6/23 新增对HTML内的runJs代码块的支持
  *         <!--其中先执行代码块内的代码,再执行main模块的代码-->
  *         <script src="runjs.js" main="main" >
- *              //module-name = "__runjs.inner__"
- *              var $ = require( 'query' );
- *              $( 'test' ).appendTo( 'body' );
- *              //exports 为方法块内部对象
- *              exports.run = function(){
- *              }
- *              //为模块间传递参数
- *              return {
- *                  language : {zh:{},en:{}}
- *              }
+ *         		//module-name = "__runjs.inner__"
+ *         		var $ = require( 'query' );
+ *         		$( 'test' ).appendTo( 'body' );
+ *         		//exports 为方法块内部对象
+ *         		exports.run = function(){
+ *         		}
+ *         		//为模块间传递参数
+ *         		return {
+ *         			language : {zh:{},en:{}}
+ *         		}
  *         </script>
+ * @update 2017/7/5 22:30 修改 _async_require_map._async_fx__ 对ES6 function新语法支持
  * 目前支持的
  * - firefox2.0以上(低版本由于不能安装没办验证)
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-06-24 20:25:18 PM
+ * creation-time : 2017-07-07 16:50:53 PM
  */
- ```
- ----
+
+```
+----
 配置信息
 ------
 ```javascript
