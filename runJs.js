@@ -5,6 +5,7 @@
  *  -  https://github.com/alwbg/runJs  -
  *  ------------------------------------
  * @Date 2015/4/23
+ * 内部声明名称与文件名称不一致时, 请用alias '[模块短连接]':'[文件路径][#][模块名称]'
  * @update 2016/1/8 修改低版本的加载问题.
  * @update 2016/4/12 修改获取模块ID问题 短ID和长ID的对称性
  * @update 2016/4/15 整理映射表
@@ -32,7 +33,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2017-07-07 16:50:53 PM
+ * creation-time : 2018-04-26 12:44:10 PM
  */
 (function( global ){
 	'use strict';
@@ -48,6 +49,8 @@
 	var STRING_ARRAY 		= 'array';
 	var PATH_NAME 			= 'path';
 	var EMPTY_STRING 		= '';
+
+	var STRING_SCRIPT 		= 'script';
 
 	var $1 					= '$1';
 	var $1$2 				= '$1$2';
@@ -271,7 +274,7 @@
 	}
 
 	//获取script列表
-	var _Scripts 		= getTags( 'script' );
+	var _Scripts 		= getTags( STRING_SCRIPT );
 	//存储head DOM对象
 	var HEAD 			= getTags( 'head' )[0];
 
@@ -464,7 +467,7 @@
 		if( document.currentScript ) {
 			return document.currentScript;
 		}
-		var eStack, i, node, nodes = getTags( 'script'/*, HEAD*/ ), E;
+		var eStack, i, node, nodes = getTags( STRING_SCRIPT/*, HEAD*/ ), E;
 		try {
 			___I__Will__Error_____();
 		} catch( e ) {
@@ -542,7 +545,7 @@
  	/**
  	 * 模块类型
  	 */
- 	declare( 'types', { }, Qma );
+ 	declare( 'suffixs', { }, Qma );
 
 	/**
  	 * 模块类型
@@ -781,7 +784,7 @@
 	tools.config = {
 		'JS' 	: '.js',
 		'CSS' 	: '.css',
-		'.js' 	: 'script',
+		'.js' 	: STRING_SCRIPT,
 		'.css'	: 'link',
 		data 	: {
 			link : { 'type' : 'text/css', 'rel' : 'stylesheet' }
@@ -1116,7 +1119,7 @@
 		 * @return {JSON}     配置信息
 		 */
 		get : function( uri ){
-			var isMark = Qma.types[ uri ];
+			var isMark = Qma.suffixs[ uri ];
 			if( ! isMark ){
 				//获取文件路径,只针对JS,其中包含了寄生类   xxxxx#oooooo
 				uri = uri.split( INNER_CLASS_SEP )[ 0 ];
@@ -1126,17 +1129,17 @@
 			//获取带后缀的连接地址
 			var path = this.path( /^(?:http[s]?|file)\:/.test( uri ) ? uri : uri.realMI(), suffix );
 			var data = {
-				uri 	: uri ,
+				uri 	: uri,
 	 			//获取标签类型
-				type 	: tools.config[ suffix ],
+				type 	: tools.config[ suffix ] || STRING_SCRIPT,
 				//设置url所指的对象属性
 				attr 	: { async : true/**/ },
 				//请求后缀名
-				suffix 	: suffix
+				suffix 	: suffix || EMPTY_STRING
 			};
 
 	 		//是否为script请求
-	 		data.isScript = suffix == tools.config.JS;
+	 		data.isScript = data.type == STRING_SCRIPT/* || suffix == tools.config.JS*/;
 			//设置模版短连接
 	 		data.attr[ MODULE_NAME ]			= data.uri;
 	 		//设置模版地址
@@ -1169,8 +1172,8 @@
 		 */
 		extname : function( uri ){
 			var url 	= com.toRealMI( uri );
-			var suffix 	= Qma.types[ uri ];
-			if( ! suffix ){
+			var suffix 	= Qma.suffixs[ uri ];
+			if( suffix === undefined ){
 				this.HAS_EXT.test( url );
 				suffix = RegExp.$1 in tools.config ? RegExp.$1 : tools.config.JS;
 			}
@@ -1191,9 +1194,15 @@
 	}, com )
 
 	merge( global, {
-		define 	: define,
-		require : require,
-		modules	: modules
+		declare 	: define,
+		$define 	: define,
+		define 		: define,
+
+		require 	: require,
+		$require 	: require,
+		
+		modules		: modules,
+		$modules 	: modules
 	}, !true );
 	
 	//声明require为内部模块
