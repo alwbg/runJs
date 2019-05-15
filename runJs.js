@@ -33,7 +33,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2019-05-15 11:56:59 AM
+ * creation-time : 2019-05-15 12:03:47 PM
  */
 (function( global ){
 	'use strict';
