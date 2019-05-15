@@ -33,7 +33,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2018-04-26 12:44:10 PM
+ * creation-time : 2019-05-15 11:56:59 AM
  */
 (function( global ){
 	'use strict';
@@ -190,8 +190,12 @@
 	 */
 	com.isInLoading = function( id ){
 		var id = id.realMI();
+		id = alias[id.split(INNER_CLASS_SEP)[0]] || id;
 		var ali = loadingMap[ id ];
 		return !ali && ( loadingMap[ id ] = id ), ali;
+	}
+	com.cleanLoadingMark = function( id ){
+		delete loadingMap[id.realMI()];
 	}
 	/**
 	 * 获取当前执行上下文环境的模块ID
@@ -791,7 +795,7 @@
 		},
 		src 	: { link 	: 'href', script 	: 'src' },
 		info : function( err ){
-			return '%cError: at [' + err + '] Modules do not exist or load timed out!'
+			return debug('%cError: at [' + err + '] Modules do not exist or load timed out!');
 		}
 	}
 	/**
@@ -833,7 +837,10 @@
 			var self = this;
 			Tag.onerror = function(){
 				self.task && self.task.space();
-				debug( tools.config.info( self.attr.src ), 'color:red' );
+				var arg = self.argument[2];
+				com.cleanLoadingMark(arg.uri);
+				tools.runFx(require.error || define.error || tools.config.info, arg);
+				Tag.parentNode.removeChild(Tag);
 			}
 			return this;
 		},
@@ -1080,7 +1087,10 @@
 			/* 加载模块 */
 			new ModuleWorker( data, function( data ){
 				debug('该标签 : ',data.type,'.sheet = ',!!this.argument[0].sheet , ' : ', data.uri, 'color:red' );
-
+				if( data.isScript ){
+					var s = this.argument[ 0 ];
+					s.parentNode.removeChild( s );
+				}
 				//加载完毕后关闭之前设置的状态,通用
 				Qma.isSimplyLoad = false;
 				var uri = data.uri;
@@ -1202,7 +1212,9 @@
 		$require 	: require,
 		
 		modules		: modules,
-		$modules 	: modules
+		$modules 	: modules,
+
+		assert 		: declare
 	}, !true );
 	
 	//声明require为内部模块
