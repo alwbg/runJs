@@ -33,11 +33,14 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2019-11-05 17:21:45 PM
+ * creation-time : 2020-10-13 18:58:36 PM
  */
-(function(global) {
+(function (global) {
 	'use strict';
-	var _SELF;
+	var Start = +new Date;
+	var DEBUGCOUNT;
+	var iSelf;
+	var Nil;
 	//模版ID名称属性 针对html JS属性值 第一次加载用
 	var MODULE_NAME = 'deps-name';
 	//define name
@@ -71,8 +74,6 @@
 	var IS_WEBKIT_LOW = USERAGENT.replace(/.*webkit\/([\d]+).*/i, $1) <= 534;
 	//firefox 9.0以下版本不支持css onload回调
 	var IS_FIREFOX_LOW = USERAGENT.replace(/.*firefox\/([\d\.]+).*/i, $1) < 9.0;
-
-	debug(USERAGENT);
 
 	//是否只支持单加载机制的浏览器
 	var IS_LONG_LONG_AGO = IS_WEBKIT_LOW || IS_FIREFOX_LOW;
@@ -116,7 +117,7 @@
 	var version = Qma.v || EMPTY_STRING;
 	//存储入口js的路径
 	var mainJsPath = null,
-		mainJsUri = null,
+		// mainJsUri = null,
 		//任务列队
 		tasks = [],
 		//依赖列队
@@ -131,15 +132,27 @@
 		 */
 		com = {},
 		_depends = Qma.depends || {},
+		/**
+		 * 模块名称对照关系
+		 */
+		_iModuleNameStorage = {},
 		//声明的短链
 		alias = {};
 	//缓存请求ID
 	com.requireIDs = {};
+	/**
+	 * 获取 "module#inner" 的 module
+	 * @param {String} name  
+	 */
+	function iPickModuleUri(name, hasPickInner) {
+		var iMs = name.split(INNER_CLASS_SEP);
+		return hasPickInner === true ? iMs : iMs[0];
+	}
 	//拷贝属性
 	merge(alias, Qma.alias);
-	Qma.comp = function(script, src) {
+	Qma.comp = function (script, src) {
 		var link = script.getAttribute(MODULE_NAME);
-		src = src.split(INNER_CLASS_SEP)[0];
+		src = iPickModuleUri(src);
 		return link == src || src == script.src;
 	}
 	/**
@@ -147,7 +160,7 @@
 	 * @return {Object}
 	 */
 	Qma.tmp = {
-		getAttribute: function() {
+		getAttribute: function () {
 			return location.host
 		}
 	};
@@ -157,9 +170,9 @@
 	 * @param  {Context} 上下文
 	 * @return {Script}
 	 */
-	Qma.getScriptByUri = function(src, context) {
+	Qma.getScriptByUri = function (src, context) {
 		for (var i = context.length, script; script = context[--i];) {
-			if (_SELF != script && this.comp(script, src)) break;
+			if (iSelf != script && this.comp(script, src)) break;
 		}
 		return script || this.tmp;
 	}
@@ -176,37 +189,59 @@
 	 * @param  {String} id 模块ID
 	 * @return {String}    处理后的
 	 */
-	com.toRealMI = function(id) {
-		return com.uri.real(alias[id] || id);
+	com.toRealMI = function (id) {
+		if (id in _iModuleNameStorage) {
+			return _iModuleNameStorage[id];
+		}
+		var real = id, host, active, inner, errbuff = 10;
+		/* 获取传入模块主 ID */
+		var iMuNa = iPickModuleUri(id);
+		while (real = iPickModuleUri(real, true)) {
+			active = real[0];
+			inner = real[1];
+			host = alias[active] || active;
+			inner = inner ? INNER_CLASS_SEP + inner : EMPTY_STRING;
+			real = host + inner;
+			if (host == active || iMuNa == active || errbuff--)
+				break;
+		}
+		debug('%c[MNC]:%c', id, '%c -> ', real, 'color:#aaa', 'color:#888', 'color:#555')
+		real = com.uri.real(real || id);
+		_iModuleNameStorage[id] = real;
+		return real;
 	}
 	/**
 	 * 判断是该模板是否存在
 	 * @param  {String}  id 模版ID
 	 * @return {Task}
 	 */
-	com.isInStorage = function(id) {
-		return com.moduleStorage[this.toRealMI(id)];
+	com.isInStorage = function (id) {
+		return com.moduleStorage[id.realMI()];
 	}
 	/**
 	 * 判断是否在加载请求列表中
 	 * @param  {String}  id
 	 * @return {Object}    返回并创建映射
 	 */
-	com.isInLoading = function(id) {
-		var id = id.realMI();
-		id = alias[id.split(INNER_CLASS_SEP)[0]] || id;
-		var ali = loadingMap[id];
-		return !ali && (loadingMap[id] = id), ali;
+	com.isInLoading = function (id) {
+		return iRealName(id, function (name, real, map) {
+			var _a = map[real] || map[name];
+			map[real] = map[name] = real;
+			return !!_a;
+		}, loadingMap);
 	}
-	com.cleanLoadingMark = function(id) {
+	com.cleanLoadingMark = function (id) {
 		delete loadingMap[id.realMI()];
 	}
 	/**
 	 * 获取当前执行上下文环境的模块ID
 	 * @return {String}
 	 */
-	com.pickMI = function() {
-		return self().getAttribute(MODULE_NAME);
+	com.iGetCurrentModuleName = function () {
+		var moduleName = self().getAttribute(MODULE_NAME);
+		return iGetRealModuleName(moduleName, function (name) {
+			return name;
+		}) || moduleName;
 	}
 
 	com.moduleIdRMap = {};
@@ -216,17 +251,18 @@
 	 * @param  {String} name 当前加载模块默认ID
 	 * @return {String}      最终需要的模块ID
 	 */
-	com.moduleId = function(id, name) {
+	com.moduleId = function (id, name) {
 		var RID = this.moduleIdRMap[id] || (this.moduleIdRMap[id] = new RegExp(id + '(?:$|\\.js)', 'i'))
 		if (!RID.test(name)) {
 			name = name + INNER_CLASS_SEP + id;
 		}
-		return alias[id] = (name || id).realMI();
+		name = (name || id).realMI();
+		return !alias[id] ? alias[id] = name : name;
 	}
 	/**
 	 * 判断是否已在已加载列表
 	 */
-	com.isInModules = function(key) {
+	com.isInModules = function (key) {
 		return modules[key];
 	}
 
@@ -237,12 +273,12 @@
 	 * @see  SIGN_MARK
 	 * @return {RegExp}
 	 */
-	com.pull = function(fx, factory) {
+	com.pull = function (fx, factory) {
 		var $1,
 			name = factory.cmd &&
-			SIGN_REQUIRE.test(fx) &&
-			($1 = RegExp.$1) &&
-			$1 != REQUIRE_NAME ? '|' + RegExp.$1 : EMPTY_STRING;
+				SIGN_REQUIRE.test(fx) &&
+				($1 = RegExp.$1) &&
+				$1 != REQUIRE_NAME ? '|' + RegExp.$1 : EMPTY_STRING;
 		return new RegExp('[^a-z](?:' + REQUIRE_NAME + name + ')' + SIGN_MARK, 'ig');
 	}
 	/**
@@ -250,7 +286,7 @@
 	 * @param  {String|RegExp}  is 要查找的元素 正则或者字符串
 	 * @return {Boolean}
 	 */
-	String.prototype.has = function(is) {
+	String.prototype.has = function (is) {
 		if (isString(is)) is = this.indexOf(is) > -1;
 		if (isRegExp(is)) is = is.test(this);
 		return is;
@@ -259,7 +295,7 @@
 	 * 格式化模块ID
 	 * @return {String} 处理完后的
 	 */
-	String.prototype.realMI = function() {
+	String.prototype.realMI = function () {
 		return com.toRealMI(this);
 	}
 
@@ -300,7 +336,7 @@
 	 * 重新建立关系
 	 * @return {Module}
 	 */
-	Module.prototype.rebulid = function() {
+	Module.prototype.rebulid = function () {
 		modules[this.id] = this.exports;
 		return this;
 	}
@@ -338,31 +374,31 @@
 		 * @see Task()
 		 * @return {JSON} { id : moduleID, deps : deps, factory : factory, script? : ? }
 		 */
-		data: function() {
+		data: function () {
 			return this.module;
 		},
 		/**
 		 * 唤醒会话 入库
 		 */
-		wake: function() {
+		wake: function () {
 			return this.storage[this.moduleID] = this, this;
 		},
 		/**
 		 * 入栈队
 		 */
-		stack: function() {
+		stack: function () {
 			return tasks.push(this), this;
 		},
 		//删除AMD模式创建的回调式的模版 每次创建都是新的
-		clear: function() {
+		clear: function () {
 			return this.id == REQUIRE_NAME && delete this.storage[this.moduleID], this;
 		},
-		space: function() {
+		space: function () {
 			delete modules[this.moduleID];
 			return this.clear();
 		},
-		remove: function() {
-			each(this.module.deps, function(k, v) {
+		remove: function () {
+			each(this.module.deps, function (k, v) {
 				v = v.realMI();
 				delete this.active[v];
 				var own = this.storage[v];
@@ -375,7 +411,7 @@
 		/**
 		 * 获取依赖列表
 		 */
-		depend: function() {
+		depend: function () {
 			var module = this.data();
 			//增加配置依赖
 			if (module.alias in _depends) {
@@ -390,45 +426,45 @@
 		/**
 		 * 判断是否在当前依赖列表中
 		 */
-		isInActive: function() {
+		isInActive: function () {
 			return this.moduleID in this.active;
 		},
 		/**
 		 * "执行"并且"创建"依赖列表
 		 */
-		run: function() {
+		run: function () {
 			if (this.isDone()) return this;
 			var deps = this.depend();
 			//过滤短连接和自定义路径
-			each(deps, function(index, value) {
+			each(deps, function (index, value) {
 				//创建激活列表
 				this[value.realMI()] = true;
 			}, this.active);
-			debug('%c检索模块依赖 -> ' + this.moduleID + ' : [' + deps + '] \r\n', 'color:#070');
+			debug('%c检索模块依赖 -> ', this.moduleID, ' : [', deps, ']', 'color:#2196F3');
 			//添加依赖去依赖列队
 			EMPTY_ARRAY_PUSH.apply(_TaskKeys, deps);
 
 			this.stack();
 			return flush(), this;
 		},
-		done: function() {
+		done: function () {
 			return (this.loaded = true), this;
 		},
 		//判断该会话是否已完成
-		isDone: function() {
+		isDone: function () {
 			return this.loaded;
 		},
 		/**
 		 * 判断当前会话是否存在于仓库当中
 		 */
-		isInStorage: function() {
+		isInStorage: function () {
 			return this.moduleID in this.storage;
 		},
 		/**
 		 * 检索该会话依赖
 		 * 后期得深层遍历依赖关系
 		 */
-		isReady: function() {
+		isReady: function () {
 			//获取依赖列表
 			var deps = this.data().deps,
 				i = deps.length,
@@ -436,7 +472,7 @@
 			for (; dep = deps[--i];) {
 				//判断依赖是否已存在
 				if (com.isInStorage(dep)) continue;
-				debug('%c所依赖的模块[' + dep + '] [未加载完成]', 'color:#777')
+				debug('%c所依赖的模块[', dep, '] [未加载完成]', 'color:#777')
 				return false
 			}
 			return true;
@@ -459,11 +495,11 @@
 	function is(type_) {
 		if (typeof type_ == 'string') {
 			var mark = new RegExp('^\\[object ' + type_ + '\\]$');
-			return function(O) {
+			return function (O) {
 				return mark.test(EMPTY_OBJECT.toString.call(O));
 			}
 		} else {
-			return function(O) {
+			return function (O) {
 				return O instanceof type_;
 			}
 		}
@@ -476,7 +512,7 @@
 		isRegExp = is(RegExp),
 		isTask = is(Task),
 		isSimplyType = is('(?:Number|Boolean|Null|String|Undefined)'),
-		isObject = function(O) {
+		isObject = function (O) {
 			return O && isRoot(O);
 		},
 		//isStringOrArray 	= is( '(?:Array|String)' ),
@@ -490,7 +526,7 @@
 		if (document.currentScript) {
 			return document.currentScript;
 		}
-		var eStack, i, node, nodes = getTags(STRING_SCRIPT /*, HEAD*/ ),
+		var eStack, i, node, nodes = getTags(STRING_SCRIPT /*, HEAD*/),
 			E;
 		try {
 			___I__Will__Error_____();
@@ -553,7 +589,7 @@
 			if (path in context) {
 				context = context[path];
 				if (isSimplyType(context)) {
-					debug('%c' + path + ' \'s type not Object! need Object {} ', 'color:red');
+					debug('%c', path, ' \'s type not Object! need Object {} ', 'color:red');
 					break;
 				} else continue;
 			}
@@ -589,20 +625,20 @@
 		 * @param  {Number}   key    代理参数
 		 * @param  {Number}   length 代理参数
 		 */
-		array: function(source, fn, key, length) {
+		array: function (source, fn, key, length) {
 			key = 0;
 			length = source.length >> 0;
 			for (; key < length && !fn.call(this, key, source[key], source); key++);
 		},
-		object: function(source, fn, key) {
+		object: function (source, fn, key) {
 			for (key in source) {
 				if (fn.call(this, key, source[key], source)) break;
 			}
 		},
-		push: function(data, key, value) {
+		push: function (data, key, value) {
 			return data.push(value)
 		},
-		add: function(data, key, value) {
+		add: function (data, key, value) {
 			data[key] = value;
 		}
 	}
@@ -617,11 +653,11 @@
 		//挑选处理方方法
 		com.factory[isArray(source) ? STRING_ARRAY : STRING_OBJECT].call(context, source, func);
 	}
-
+	debug(USERAGENT);
 	/**
 	 * 工具类
 	 */
-	function Util() {};
+	function Util() { };
 	//创建工具类
 	var tools = new Util();
 	/**
@@ -637,12 +673,12 @@
 		NUM: 1E6,
 		_has_async_func_: /(?:require|\w+)\s*\([^),]*/,
 		_async_fx__: /(?:((?:require|\w+)\s*\([^),]*,[^(]*\([^)]*\)\s*(?:=>)?\s*\{)|(\{)|(\}))/g,
-		REPLACE: function(num) {
+		REPLACE: function (num) {
 			return this.map[num] || (this.map[num] = new RegExp('\\' + this.START + num + '(?:(?!\\' + this.SEP + num + ').|\\n)*\\' + this.SEP + num));
 		}
 	};
 
-	var moduleIDs = {}
+	// var moduleIDs = {}
 	/**
 	 * 工具原型注册方法
 	 * @type {Util}
@@ -657,7 +693,7 @@
 		 * @param  {arguments...} 方法对应的参数
 		 * @return {Object} 返回方法执行结果
 		 */
-		runFx: function(callback, G) {
+		runFx: function (callback, G) {
 			var args = EMPTY_ARRAY_SLICE.call(arguments);
 			var fx = args.shift();
 			if (fx instanceof Function) {
@@ -667,7 +703,7 @@
 		/**
 		 * 获取依赖
 		 */
-		getDeps: function(factory) {
+		getDeps: function (factory) {
 			var fx = factory.toString();
 			//去掉注释
 			fx = fx.replace(this.ANNOTATION_REG, EMPTY_STRING);
@@ -685,7 +721,7 @@
 				//数据源
 				fx.match(context.mark) || [],
 				//处理方法
-				function(key, value) {
+				function (key, value) {
 					value = value.replace(this.mark, $1$2);
 					if (value in this.map) return; //去重
 
@@ -696,7 +732,7 @@
 			);
 			return context.pick;
 		},
-		removeAsyncRequire: function(fx) {
+		removeAsyncRequire: function (fx) {
 			var
 				l = _async_require_map.LEFT,
 				r = _async_require_map.RIGHT,
@@ -713,7 +749,7 @@
 				 * @param  {String} pick 通配符
 				 * @param  {String} $1   异步开始
 				 */
-				function(pick, $1) {
+				function (pick, $1) {
 					if ($1) {
 						cMark = 1;
 						block++;
@@ -746,7 +782,7 @@
 		 * )
 		 * [undefined, function (){alert(1)}, "", ""]
 		 */
-		checkByType: function(types, source, defaultData) {
+		checkByType: function (types, source, defaultData) {
 			if (!isArray(source)) return ret;
 			defaultData || (defaultData = []);
 			var ret = [],
@@ -776,19 +812,19 @@
 		 * @param  {Array}  type 返回的类型   {} || []
 		 * @return {Object}      筛选后的数据 依赖于参数@see #type
 		 */
-		pick: function(data, pick, type) {
+		pick: function (data, pick, type) {
 			if (!isArray(pick)) return data;
 			var isIn, __data_ = type || {};
 			var fn = com.factory[isArray(type) ? 'push' : 'add'];
 			each(pick,
-				function(key, value) {
+				function (key, value) {
 					isIn = value in data;
 					if (!isIn) return;
 					this.fx(this.box, value, data[value]);
 				}, {
-					box: __data_,
-					fx: fn
-				}
+				box: __data_,
+				fx: fn
+			}
 			);
 			return __data_;
 		},
@@ -797,7 +833,7 @@
 		 * @param  {Object} data 数据源
 		 * @return {Array}
 		 */
-		toArray: function(data) {
+		toArray: function (data) {
 			return EMPTY_ARRAY_SLICE.call(data);
 		},
 		merge: merge
@@ -805,7 +841,7 @@
 	})
 
 	//获取当前文件
-	_SELF = self();
+	iSelf = self();
 
 	/**
 	 * 模块加载的配置属性
@@ -826,8 +862,8 @@
 			link: 'href',
 			script: 'src'
 		},
-		info: function(err) {
-			return debug('%cError: at [' + (err.stack || err.message || err) + '] Modules do not exist or load timed out!');
+		info: function (err) {
+			return debug('%cError: at [', (err.stack || err.message || err), '] Modules do not exist or load timed out!');
 		}
 	}
 	/**
@@ -840,7 +876,7 @@
 		//获取标签对象
 		var Tag = createByTagName(data.type);
 		//添加标签属性
-		each(data.attr, function(key, value) {
+		each(data.attr, function (key, value) {
 			this.setAttribute(key, value);
 		}, Tag);
 		//回调参数
@@ -854,7 +890,7 @@
 
 		//添加对象
 		HEAD.appendChild(Tag);
-		debug('%c正在加载模块 -> ' + data.uri, 'color:#e0e');
+		debug('%c正在加载模块 -> ', data.uri, 'color:#ff5722');
 	}
 
 	merge(ModuleWorker.prototype, {
@@ -862,16 +898,16 @@
 		 * 添加加载文件的成功回调事件
 		 * @param  {Boolean}  isScript 是否为脚本
 		 */
-		onload: function(isScript) {
+		onload: function (isScript) {
 			//低版本样式加载的onload不能回调处理
 			return this[IS_LONG_LONG_AGO && !isScript ? 'load' : 'moduleLoad'](this.argument), this;
 		},
 		/**
 		 * 加载异常处理
 		 */
-		onerror: function(Tag) {
+		onerror: function (Tag) {
 			var self = this;
-			Tag.onerror = function() {
+			Tag.onerror = function () {
 				self.task && self.task.space();
 				var arg = self.argument.data;
 				com.cleanLoadingMark(arg.uri);
@@ -883,7 +919,7 @@
 		/**
 		 * 低版本样式加载的onload不能回调处理
 		 */
-		load: function(args) {
+		load: function (args) {
 			var Tag = args.target;
 			var times = 0;
 			var self = this;
@@ -902,31 +938,38 @@
 		 * JS加载事件
 		 * @type {Function}
 		 */
-		moduleLoad: 'onreadystatechange' in _SELF ?
+		moduleLoad: 'onreadystatechange' in iSelf ?
 			// ie
-			function(args) {
+			function (args) {
 				var self = this;
-				args.target.onreadystatechange = function(e) {
+				args.target.onreadystatechange = function (e) {
 					if (/^(?:complete|loaded)$/.test(this.readyState)) {
 						tools.runFx.call(self, args.callback, args.data);
 					}
 				}
 			} : //chrome|firefox|...
-			function(args) {
+			function (args) {
 				var self = this;
-				args.target.onload = function(e) {
+				args.target.onload = function (e) {
 					tools.runFx.call(self, args.callback, args.data);
 				}
 			}
 	})
 
+	function isEmpty(data) {
+		for (var key in data) {
+			if (!data.hasOwnProperty(key)) continue;
+			return false;
+		};
+		return true;
+	}
 	/**
 	 * 模块工厂
 	 * @param  {String} id 模块ID
 	 * @return {Object}    模块对象
 	 */
 	function moduleFactory(id) {
-		id = com.toRealMI(id);
+		id = id.realMI();
 		var task;
 		if (task = com.isInModules(id)) return task;
 		if (task = com.isInStorage(id)) {
@@ -934,7 +977,7 @@
 			var _Mo = new Module(id, {}),
 				_ret,
 				module = task.data();
-			debug('%c正在创建模块 : ' + id, 'color:blue');
+			debug('%c正在创建模块 : ', id, 'color:#FFEB3B');
 			try {
 				_ret = module.length ?
 					//创建AMD对象
@@ -949,7 +992,7 @@
 				_Mo.exports = _ret;
 			} else {
 				//如果含有返回值则附加到对象
-				merge(_Mo.exports, _ret);
+				_ret && isEmpty(_Mo.exports) ? _Mo.exports = _ret : merge(_Mo.exports, _ret);
 			}
 			//重新设置关系
 			_Mo.rebulid();
@@ -964,7 +1007,7 @@
 	 * @param  {String} id  依赖ID
 	 * @param  {Function} func 异步回调
 	 */
-	require.async = function(uri, func) {
+	require.async = function (uri, func) {
 		isString(uri) && (uri = [uri.realMI()]);
 		var len = uri.length,
 			//返回新会话对应的module
@@ -994,7 +1037,7 @@
 	 */
 	function require(id, factory) {
 		//判断是否是CMD调用
-		if (isStringNotArray(id) && factory === undefined) {
+		if (isStringNotArray(id) && factory === Nil) {
 			return moduleFactory(id);
 		}
 		//判断是否为AMD调用
@@ -1012,7 +1055,7 @@
 	 */
 	function define(id, deps, factory) {
 		var //获取模块ID
-			name = isString(this) ? this + EMPTY_STRING : com.pickMI(),
+			name = isString(this) ? this + EMPTY_STRING : com.iGetCurrentModuleName(),
 			mark = 0,
 			task;
 		//创建单纯对象
@@ -1028,7 +1071,7 @@
 		//格式化参数
 		var tank = tools.checkByType(
 			DEFINE_TYPES, [id, deps, factory], //要检索的数据
-			[name, [], function() {}] //默认数据 如果不写.默认 undfined
+			[name, [], function () { }] //默认数据 如果不写.默认 undfined
 		);
 		//重新建立关系
 		id = tank[0];
@@ -1055,14 +1098,14 @@
 	 * @param  {Array} 依赖列队
 	 */
 	function flush(rank) {
-		_CallModule(rank || _TaskKeys, function() {
+		_CallModule(rank || _TaskKeys, function () {
 			var //任务
 				task, isNotReadyList = [],
 				Map = {};
 			//获取任务列表
 			while (task = tasks.pop()) {
 				//判断是否已存在仓库
-				if (!isTask(task) || task.isDone() || !task.isInStorage()) continue;
+				if (!isTask(task) || task.isDone()/*  || !task.isInStorage() */) continue;
 				//判断会话列队中是否有重复
 				if (task.module.factory in Map) continue;
 				Map[task.module.factory] = 0;
@@ -1090,11 +1133,11 @@
 		 * 处理require声明 AMD回调参数填充和调用
 		 * @param  {Task} task 任务会话
 		 */
-		require: function(task) {
+		require: function (task) {
 			var module = task.data(),
 				args = module.deps.slice(0, module.length);
 			/* 获取参数列表 */
-			each(args, function(index, dep) {
+			each(args, function (index, dep) {
 				this[index] = moduleFactory(dep);
 			}, args);
 			args.unshift(module.factory);
@@ -1102,6 +1145,17 @@
 			return tools.runFx.apply(task.clear(), args);
 		}
 	}, com);
+	/* 获取模块名称 */
+	function iGetRealModuleName(name, exec, insert) {
+		var realname = name.realMI();
+		return realname != name
+			&& realname.indexOf(INNER_CLASS_SEP) > -1
+			&& tools.runFx(exec, iPickModuleUri(realname), realname, insert);
+	}
+	function iRealName(name, exec, insert) {
+		var realname = name.realMI();
+		return tools.runFx(exec, iPickModuleUri(realname), realname, insert);
+	}
 	/**
 	 * 呼唤模块
 	 * @param  {Array}   deps
@@ -1113,27 +1167,27 @@
 			return;
 		}
 		if (!deps.length) {
-			debug('%c依赖列队加载完毕', 'color:#3e3');
+			debug('%c依赖列队加载完毕! Create Time -> ', +new Date - Start, 'ms', 'color:#8BC34A');
 			return tools.runFx(callback);
 		};
 		var key = deps.shift(),
 			task;
-		debug('%c准备加载模块 -> ' + key, 'color:#666');
+		debug('%c准备加载模块 -> ', key, 'color:#4CAF50');
 		if (task = com.isInStorage(key)) {
 			task.run();
 		} else {
+			var isInLoadingRank = com.isInLoading(key);
 			//判断是否在加载列表中
-			if (com.isInLoading(key)) return debug('%c已在加载列表 -> ' + key, 'color:#e06');
-
+			if (isInLoadingRank) return debug('%c已在加载列表 -> ', key, 'color:#e06');
 			var data = com.uri.get(key);
 			//设置当前加载模块
 			Qma.currentLoad = data.uri;
 			//开启单加载模式
 			IS_LONG_LONG_AGO && (Qma.isSimplyLoad = true);
 			/* 加载模块 */
-			new ModuleWorker(data, function(data) {
+			new ModuleWorker(data, function (data) {
 				var target = this.argument.target;
-				debug('该标签 : ', data.type, '.sheet = ', !!target.sheet, ' : ', data.uri, 'color:red');
+				debug('%c标签:::', data.type, ':{sheet:', !!target.sheet, '} => [', data.uri, ']', 'color:#E91E63');
 				if (data.isScript) {
 					// 创建完毕删除标签
 					target.parentNode.removeChild(target);
@@ -1149,19 +1203,20 @@
 					var mods = _depends[uri] || [],
 						name = mods.exports;
 					if (name) {
-						define.call(uri, mods.deps, function() {
+						define.call(uri, mods.deps, function () {
 							return global[name];
 						})
 					}
 				}
 				//非AMD CMD 模块加载
 				!com.isInStorage(uri) && define.call(uri, {});
-				/* 刷新列表 */
-				flush();
 				if (com.moduleStorage[uri]) {
 					com.moduleStorage[uri].target = target;
 				}
+				/* 刷新列表 */
+				flush();
 			});
+			// }
 		}
 		_CallModule(deps, callback);
 	}
@@ -1180,11 +1235,11 @@
 		 * @param  {String} uri 模块ID
 		 * @return {JSON}     配置信息
 		 */
-		get: function(uri) {
+		get: function (uri) {
 			var isMark = Qma.suffixs[uri];
 			if (!isMark) {
 				//获取文件路径,只针对JS,其中包含了寄生类   xxxxx#oooooo
-				uri = uri.split(INNER_CLASS_SEP)[0];
+				uri = iPickModuleUri(uri);
 			}
 			//获取后缀
 			var suffix = this.extname(uri).toLowerCase();
@@ -1203,7 +1258,7 @@
 			};
 
 			//是否为script请求
-			data.isScript = data.type == STRING_SCRIPT /* || suffix == tools.config.JS*/ ;
+			data.isScript = data.type == STRING_SCRIPT /* || suffix == tools.config.JS*/;
 			//设置模版短连接
 			data.attr[MODULE_NAME] = data.uri;
 			//设置模版地址
@@ -1218,7 +1273,7 @@
 		 * @param  {String} url 要处理的URL
 		 * @return {String}     处理后的
 		 */
-		real: function(url) {
+		real: function (url) {
 			/* 是否含有点 */
 			if (this.DOT.test(url)) {
 				/* CONTEXT_PATH 是页面执行 */
@@ -1234,14 +1289,14 @@
 		 * @param  {String} uri 模块ID
 		 * @return {String}    	后缀
 		 */
-		extname: function(uri) {
-			var url = com.toRealMI(uri);
+		extname: function (uri) {
+			var url = uri.realMI();
 			var suffix = Qma.suffixs[uri];
-			if (suffix === undefined) {
+			if (suffix === Nil) {
 				this.HAS_EXT.test(url);
 				suffix = RegExp.$1 in tools.config ? RegExp.$1 : tools.config.JS;
 			}
-			debug(url, '>', this.HAS_EXT.test(url), ' : |', suffix, '|', 'color:#07afd8')
+			// debug(url, '>', this.HAS_EXT.test(url), ' : |', suffix, '|', 'color:#07afd8')
 			return suffix;
 		},
 		/**
@@ -1250,7 +1305,7 @@
 		 * @param  {String} type 类型
 		 * @return {String}
 		 */
-		path: function(path, type) {
+		path: function (path, type) {
 			var sep = /\?/.test(path) ? '&' : '?';
 			return path.replace(this.HAS_EXT, '$2' + type + (version && (sep + version) || EMPTY_STRING) + '$3');
 		}
@@ -1275,11 +1330,11 @@
 	//声明内部工具模块
 	declareModule('_tools__', tools.pick(tools, ['runFx', 'checkByType', 'pick']));
 
-	define.toString = require.toString = function() {
+	define.toString = require.toString = function () {
 		return 'function(){[native code]}'
 	}
 	/*获取当前引用的配置属性*/
-	mainJsPath = _SELF.getAttribute(STRING_MAIN);
+	mainJsPath = iSelf.getAttribute(STRING_MAIN);
 
 	function auto() {
 		/*判断是否有自执行*/
@@ -1287,23 +1342,33 @@
 			require.async(mainJsPath);
 		}
 	}
-	if (_SELF.innerHTML) {
+	if (iSelf.innerHTML) {
 		var innerModuleID = '__runjs.inner__';
-		define.call(innerModuleID, new Function('require', 'exports', 'module', '__module_name', _SELF.innerHTML));
-		require(innerModuleID, function() {
+		define.call(innerModuleID, new Function('require', 'exports', 'module', '__module_name', iSelf.innerHTML));
+		require(innerModuleID, function () {
 			auto();
 			flush();
 		});
 	} else {
 		auto();
 	}
-	//调试
+	//:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::DEBUG:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	global.DEBUG = global.DEBUG || false;
 	global.appendChild = append;
 	//输出流程
 	function debug() {
 		if (!global.DEBUG) return;
-		echo.apply(global, EMPTY_ARRAY.slice.call(arguments));
+		DEBUGCOUNT == Nil && (DEBUGCOUNT = 0);
+		var args = [[DEBUGCOUNT++, '\t']];
+		each(EMPTY_ARRAY.slice.call(arguments), function (k, v) {
+			if (/^color:/.test(v)) {
+				this.push(v);
+			} else {
+				this[0].push(v)
+			}
+		}, args)
+		args[0] = args[0].join(EMPTY_STRING);
+		echo.apply(global, args);
 	}
 	var debugBox,
 		CLR;
@@ -1329,12 +1394,12 @@
 	function echo() {
 		try {
 			var log = Array.apply(null, arguments);
-			//throw ''
+			// throw ''
 			console.log.apply(console, log);
 		} catch (e) {
 			try {
 				append(EMPTY_ARRAY_SLICE.call(arguments).join('\r\n\r\n'));
-			} catch (e) {}
+			} catch (e) { }
 		}
 	};
 
