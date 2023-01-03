@@ -33,7 +33,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2020-10-13 18:58:36 PM
+ * Mix-time : 2023-01-03 11:19:28 午时
  */
 (function (global) {
 	'use strict';
@@ -252,6 +252,7 @@
 	 * @return {String}      最终需要的模块ID
 	 */
 	com.moduleId = function (id, name) {
+		if (id == name && this.uri.THR.test(id)/* 判断是否为第三方链接 */) return name;
 		var RID = this.moduleIdRMap[id] || (this.moduleIdRMap[id] = new RegExp(id + '(?:$|\\.js)', 'i'))
 		if (!RID.test(name)) {
 			name = name + INNER_CLASS_SEP + id;
@@ -402,9 +403,11 @@
 				v = v.realMI();
 				delete this.active[v];
 				var own = this.storage[v];
-				delete own.space();
-				own.target && own.target.parentNode && own.target.parentNode.removeChild(own.target);
-				delete this.storage[v];
+				if (own) {
+					delete own.space();
+					own.target && own.target.parentNode && own.target.parentNode.removeChild(own.target);
+					delete this.storage[v];
+				}
 			}, this);
 			return this.clear();
 		},
@@ -1230,21 +1233,27 @@
 		HAS_EXT: /(?:(\.(?:css|js))|(.))(\?|\#|$)/,
 		/* 匹配 [dir/../] or [/.] */
 		DOT: /(?:[^\/]*\/[^\/]*\.{2}\/|\/\.(?!\.))/,
+		THR: /\?(&?[^&]+=[^&]*)+$/,
 		/**
 		 * 获取模块配置信息
 		 * @param  {String} uri 模块ID
 		 * @return {JSON}     配置信息
 		 */
 		get: function (uri) {
-			var isMark = Qma.suffixs[uri];
+			var isMark = Qma.suffixs[uri], path, suffix;
 			if (!isMark) {
 				//获取文件路径,只针对JS,其中包含了寄生类   xxxxx#oooooo
 				uri = iPickModuleUri(uri);
 			}
-			//获取后缀
-			var suffix = this.extname(uri).toLowerCase();
-			//获取带后缀的连接地址
-			var path = this.path(/^(?:http[s]?|file)\:/.test(uri) ? uri : uri.realMI(), suffix);
+			if (this.THR.test(uri)) {
+				path = uri;
+				suffix = tools.config.JS;
+			} else {
+				//获取后缀
+				suffix = this.extname(uri).toLowerCase();
+				//获取带后缀的连接地址
+				path = this.path(/^(?:http[s]?|file)\:/.test(uri) ? uri : uri.realMI(), suffix);
+			}
 			var data = {
 				uri: uri,
 				//获取标签类型
@@ -1324,6 +1333,10 @@
 
 		assert: declare
 	}, !true);
+
+	require.alias = function (name, value) {
+		alias[name] = value;
+	}
 
 	//声明require为内部模块
 	declareModule(REQUIRE_NAME, require);
