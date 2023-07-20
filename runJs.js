@@ -33,7 +33,7 @@
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * Mix-time : 2023-01-03 11:19:28 午时
+ * Mix-time : 2023-07-20 18:00:58 酉时
  */
 (function (global) {
 	'use strict';
@@ -280,7 +280,7 @@
 				SIGN_REQUIRE.test(fx) &&
 				($1 = RegExp.$1) &&
 				$1 != REQUIRE_NAME ? '|' + RegExp.$1 : EMPTY_STRING;
-		return new RegExp('[^a-z](?:' + REQUIRE_NAME + name + ')' + SIGN_MARK, 'ig');
+		return new RegExp('[^a-z.](?:' + REQUIRE_NAME + name + ')' + SIGN_MARK, 'ig');
 	}
 	/**
 	 * 字符串自身是否含有指定元素
