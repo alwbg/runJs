@@ -31,12 +31,13 @@ runJs[模块加载器]
  *         		}
  *         </script>
  * @update 2017/7/5 22:30 修改 _async_require_map._async_fx__ 对ES6 function新语法支持
+ * @update 2023/7/23 新增独立文件增加版本控制 alias: {a: 'b', c: 'a?v2#d'} => c: 'b.js?v2#d'
  * 目前支持的
  * - firefox2.0以上(低版本由于不能安装没办验证)
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * creation-time : 2019-05-15 12:03:47 PM
+ * Mix-time : 2023-07-23 16:36:33 申时
  */
 
 ```

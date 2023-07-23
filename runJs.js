@@ -28,12 +28,13 @@
  *         		}
  *         </script>
  * @update 2017/7/5 22:30 修改 _async_require_map._async_fx__ 对ES6 function新语法支持
+ * @update 2023/7/23 新增独立文件增加版本控制 alias: {a: 'b', c: 'a?v2#d'} => c: 'b.js?v2#d'
  * 目前支持的
  * - firefox2.0以上(低版本由于不能安装没办验证)
  * - webkit 534版本及以上, 低版本未验证
  * - IE5以上
  * - opera
- * Mix-time : 2023-07-20 18:00:58 酉时
+ * Mix-time : 2023-07-23 16:41:39 申时
  */
 (function (global) {
 	'use strict';
@@ -193,18 +194,25 @@
 		if (id in _iModuleNameStorage) {
 			return _iModuleNameStorage[id];
 		}
-		var real = id, host, active, inner, errbuff = 10;
-		/* 获取传入模块主 ID */
-		var iMuNa = iPickModuleUri(id);
-		while (real = iPickModuleUri(real, true)) {
+		var real = id, host, active, module, version;
+		// 2023-07-23 修复嵌套引用 alias: {a:b, c:a#d} => c: b#d
+		do {
+			real = iPickModuleUri(real, true);
 			active = real[0];
-			inner = real[1];
+			if (/\?/.test(active)){
+				active = active.split(/(?=\?)/);
+				version = active[1];
+				active = active[0];
+			}
+			module = active;
 			host = alias[active] || active;
-			inner = inner ? INNER_CLASS_SEP + inner : EMPTY_STRING;
-			real = host + inner;
-			if (host == active || iMuNa == active || errbuff--)
-				break;
-		}
+			real[0] = host;
+			active = real.join(INNER_CLASS_SEP)
+		} while (
+			module in alias
+			&& host != module && (real = active)
+		);
+		real = active.replace(/(?=\#)|$/, version || EMPTY_STRING);
 		debug('%c[MNC]:%c', id, '%c -> ', real, 'color:#aaa', 'color:#888', 'color:#555')
 		real = com.uri.real(real || id);
 		_iModuleNameStorage[id] = real;
@@ -1005,6 +1013,20 @@
 			return _Mo.exports;
 		}
 	}
+	function isNil(data) {
+		return undefined === data;
+	}
+	/**
+	 * 验证参数 是否为 undefined | RegExp
+	 * @param {Undefined | RegExp} regexp 
+	 * @param {Array|String} uri
+	 * @returns Boolean
+	 */
+	function iValidate(regexp, uri) {
+		return isNil(regexp) || (
+			isRegExp(regexp) && regexp.test(uri)
+		)
+	}
 	/**
 	 * 异步加载
 	 * @param  {String} id  依赖ID
@@ -1025,6 +1047,8 @@
 				factory: func
 			});
 		isFunction(func) && (func.cmd = false);
+		// 创建前
+		iValidate(Evs.regexp, uri) && tools.runFx(Evs.before, uri);
 		task.async = !!len;
 		//计算所依赖的模块状态
 		while (len-- && com.isInModules(uri[len]));
@@ -1051,6 +1075,10 @@
 		//如果是重复调用会多次创建
 		return require.async(id, factory);
 	};
+	var Evs = {};
+	require.init = function (events) {
+		merge(Evs, events, true);
+	}
 
 	/**
 	 * define(id?, deps?, factory)
@@ -1144,8 +1172,9 @@
 				this[index] = moduleFactory(dep);
 			}, args);
 			args.unshift(module.factory);
-			/* 执行回调函数 */
-			return tools.runFx.apply(task.clear(), args);
+			return iValidate(Evs.regexp, module.deps) && tools.runFx(Evs.after, module.deps) /* 创建后 */,
+				/* 执行回调函数 */
+				tools.runFx.apply(task.clear(), args);
 		}
 	}, com);
 	/* 获取模块名称 */
@@ -1230,7 +1259,8 @@
 	declare('uri', {
 		/* 匹配后缀名 目前支持 js | css(后不含有?或者#) '|css[^#?]' */
 		DOT_EXTNAME: /\.(js(?=$|#))/,
-		HAS_EXT: /(?:(\.(?:css|js))|(.))(\?|\#|$)/,
+		/* 2023-07-23 修改双开版本 alias: {a: 'b', c: 'a?v2#d'} => c: 'b?v2#d' */
+		HAS_EXT: /(?:(\.(?:css|js))|(.))(\?[^#]*|\#|$)/,
 		/* 匹配 [dir/../] or [/.] */
 		DOT: /(?:[^\/]*\/[^\/]*\.{2}\/|\/\.(?!\.))/,
 		THR: /\?(&?[^&]+=[^&]*)+$/,
@@ -1316,7 +1346,7 @@
 		 */
 		path: function (path, type) {
 			var sep = /\?/.test(path) ? '&' : '?';
-			return path.replace(this.HAS_EXT, '$2' + type + (version && (sep + version) || EMPTY_STRING) + '$3');
+			return path.replace(this.HAS_EXT, '$2' + type + '$3' + (version && (sep + version) || EMPTY_STRING));
 		}
 	}, com)
 
